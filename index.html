@@ -1,0 +1,119 @@
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Registro de asistencia</title>
+  <style>
+    video, canvas {
+      max-width: 300px;
+      border: 2px solid #333;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <h2>Registro de Asistencia</h2>
+
+  <form id="registroForm">
+    <label>Nombre:</label><br />
+    <input type="text" name="nombre" id="nombre" required /><br /><br />
+
+    <label>Tipo:</label><br />
+    <select name="tipo" id="tipo" required>
+      <option value="">Seleccione</option>
+      <option value="Entrada">Entrada</option>
+      <option value="Salida">Salida</option>
+    </select><br /><br />
+
+    <label>Observación (opcional):</label><br />
+    <input type="text" name="observacion" id="observacion" /><br /><br />
+
+    <video id="video" autoplay></video><br />
+    <canvas id="canvas" style="display:none;"></canvas><br />
+
+    <input type="hidden" name="latitud" id="latitud" />
+    <input type="hidden" name="longitud" id="longitud" />
+    <input type="hidden" name="hora" id="hora" />
+    <input type="hidden" name="fecha" id="fecha" />
+
+    <button type="button" onclick="tomarFoto()">Sacar Foto y Enviar</button>
+  </form>
+
+  <script>
+    // Configuración de cámara
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+
+    // Acceder a cámara
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then((stream) => {
+        video.srcObject = stream;
+      })
+      .catch((err) => {
+        alert("No se pudo acceder a la cámara: " + err.message);
+      });
+
+    // Obtener ubicación
+    let latitud = '', longitud = '';
+    navigator.geolocation.getCurrentPosition((pos) => {
+      latitud = pos.coords.latitude;
+      longitud = pos.coords.longitude;
+      document.getElementById('latitud').value = latitud;
+      document.getElementById('longitud').value = longitud;
+    }, (err) => {
+      alert("Ubicación no disponible: " + err.message);
+    });
+
+    function tomarFoto() {
+      // Validar campos obligatorios
+      const nombre = document.getElementById("nombre").value.trim();
+      const tipo = document.getElementById("tipo").value;
+
+      if (!nombre || !tipo) {
+        alert("Por favor, complete nombre y tipo.");
+        return;
+      }
+
+      // Tomar foto
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0);
+
+      const timestamp = new Date();
+      const hora = timestamp.toLocaleTimeString("es-BO", { hour12: false });
+      const fecha = timestamp.toISOString().split('T')[0];
+
+      document.getElementById("hora").value = hora;
+      document.getElementById("fecha").value = fecha;
+
+      // Descargar imagen
+      const link = document.createElement('a');
+      link.download = `${nombre}_${tipo}_${fecha}_${hora}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+
+      // Enviar datos al Google Sheet
+      const formData = new FormData();
+      formData.append("nombre", nombre);
+      formData.append("tipo", tipo);
+      formData.append("observacion", document.getElementById("observacion").value);
+      formData.append("hora", hora);
+      formData.append("fecha", fecha);
+      formData.append("latitud", latitud);
+      formData.append("longitud", longitud);
+
+      fetch("https://script.google.com/macros/s/AKfycbwiZdSb1bvdnYLSRI_HyopGYPE4tsvmkujnB-hDFhV-P6uZR0mUJl0jQl42i1stD8vmYQ/exec", {
+        method: "POST",
+        body: formData
+      })
+      .then(res => res.ok ? alert("📸 Foto descargada y datos enviados correctamente.") : alert("❌ Error al enviar datos."))
+      .catch(() => alert("❌ Error de conexión al enviar datos."));
+    }
+  </script>
+</body>
+</html>
+
+
